@@ -46,6 +46,10 @@
             display: none;
             text-align: center;
         }
+        #game-description {
+           text-align: center;
+            margin-bottom: 20px; /* Add space below the body text */
+        }
         #wordle-board {
             display: grid;
             grid-template-columns: repeat(5, 1fr);
@@ -70,20 +74,26 @@
         }
         .keyboard-row {
             display: flex;
-            gap: 5px;
+            gap: 3px;
         }
         .key {
             padding: 10px;
-            min-width: 10px;
+            min-width: 11px;
+            min-height: 35px;
             border: 1px solid #ccc;
             border-radius: 4px;
             cursor: pointer;
             text-align: center;
             user-select: none;
+
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            text-transform: uppercase;
         }
         .keyboard-button-wide {
-            width: 40px;  /* Adjust as needed */
-            font-size: 15px;  /* Smaller font size to fit the text */
+            width: 36px;  /* Adjust as needed */
+            font-size: 12px;  /* Smaller font size to fit the text */
         }
         .correct { background-color: #6aaa64; color: white; }
         .present { background-color: #c9b458; color: white; }
@@ -113,6 +123,10 @@
 </head>
 <body>
     <h1>Wordle Crossword</h1>
+    <body>By Bharath & Claude.ai</body>
+    <p id="game-description">Solve the four word crossword. Each row/column is a Wordle game. Enjoy</p>
+    <div></div>
+
     <div id="game-container">
         <div id="crossword-grid"></div>
         <div id="wordle-game">
