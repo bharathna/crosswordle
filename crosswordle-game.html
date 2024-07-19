@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wordle Crossword</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+        #game-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+        #crossword-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 2px;
+        }
+        .crossword-tile {
+            width: 50px;
+            height: 50px;
+            border: 1px solid #ccc;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 20px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .crossword-tile.empty {
+            background-color: #f0f0f0;
+        }
+        .crossword-tile.completed {
+            background-color: #6aaa64;
+            color: white;
+        }
+        #wordle-game {
+            display: none;
+            text-align: center;
+        }
+        #wordle-board {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 5px;
+            margin-bottom: 20px;
+        }
+        .wordle-tile {
+            width: 50px;
+            height: 50px;
+            border: 2px solid #ccc;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 20px;
+            font-weight: bold;
+        }
+        #keyboard {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+        }
+        .keyboard-row {
+            display: flex;
+            gap: 5px;
+        }
+        .key {
+            padding: 10px;
+            min-width: 20px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            cursor: pointer;
+            text-align: center;
+            user-select: none;
+        }
+        .correct { background-color: #6aaa64; color: white; }
+        .present { background-color: #c9b458; color: white; }
+        .absent { background-color: #787c7e; color: white; }
+        .celebration {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 9999;
+        }
+        .confetti {
+            width: 10px;
+            height: 10px;
+            background-color: #f0f0f0;
+            position: absolute;
+            animation: fall 3s ease-in infinite;
+        }
+        @keyframes fall {
+            to {
+                transform: translateY(100vh) rotate(720deg);
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Wordle Crossword</h1>
+    <div id="game-container">
+        <div id="crossword-grid"></div>
+        <div id="wordle-game">
+            <h2 style="text-align: center;">Guess the Word</h2>
+            <div id="wordle-board"></div>
+            <div id="keyboard"></div>
+        </div>
+    </div>
+    <p id="message"></p>
+
+    <script>
+        const crosswordWords = [
+            { word: 'TAROT', direction: 'across', startRow: 0, startCol: 0 },
+            { word: 'ARENA', direction: 'down', startRow: 0, startCol: 1 },
+            { word: 'TASTY', direction: 'across', startRow: 4, startCol: 0 },
+            { word: 'ONSET', direction: 'down', startRow: 0, startCol: 3 }
+        ];
+
+        let currentWord = '';
+        let currentWordIndex = -1;
+        let currentRow = 0;
+        let currentTile = 0;
+        let maxAttempts = 6;
+        let completedWords = 0;
+
+        function createCrosswordGrid() {
+            const grid = document.getElementById('crossword-grid');
+            for (let i = 0; i < 25; i++) {
+                const tile = document.createElement('div');
+                tile.classList.add('crossword-tile');
+                tile.classList.add('empty');
+                tile.dataset.row = Math.floor(i / 5);
+                tile.dataset.col = i % 5;
+                tile.addEventListener('click', () => handleCrosswordTileClick(tile));
+                grid.appendChild(tile);
+            }
+            initializeCrosswordWords();
+        }
+
+        function initializeCrosswordWords() {
+            crosswordWords.forEach(word => {
+                for (let i = 0; i < 5; i++) {
+                    const row = word.direction === 'across' ? word.startRow : word.startRow + i;
+                    const col = word.direction === 'across' ? word.startCol + i : word.startCol;
+                    const tile = document.querySelector(`.crossword-tile[data-row="${row}"][data-col="${col}"]`);
+                    tile.classList.remove('empty');
+                }
+            });
+        }
+
+        function handleCrosswordTileClick(tile) {
+            const row = parseInt(tile.dataset.row);
+            const col = parseInt(tile.dataset.col);
+            const word = crosswordWords.find(w => 
+                (w.direction === 'across' && w.startRow === row && col >= w.startCol && col < w.startCol + 5) ||
+                (w.direction === 'down' && w.startCol === col && row >= w.startRow && row < w.startRow + 5)
+            );
+
+            if (word) {
+                currentWord = word.word;
+                currentWordIndex = crosswordWords.indexOf(word);
+                showWordleGame();
+            }
+        }
+
+        function showWordleGame() {
+            document.getElementById('wordle-game').style.display = 'block';
+            createWordleBoard();
+            createKeyboard();
+            currentRow = 0;
+            currentTile = 0;
+            
+            // Update max attempts based on completed words
+            if (completedWords < 2) {
+                maxAttempts = 6;
+            } else if (completedWords === 2) {
+                maxAttempts = 5;
+            } else {
+                maxAttempts = 4;
+            }
+        }
+
+        function createWordleBoard() {
+            const board = document.getElementById('wordle-board');
+            board.innerHTML = '';
+            for (let i = 0; i < maxAttempts * 5; i++) {
+                const tile = document.createElement('div');
+                tile.classList.add('wordle-tile');
+                board.appendChild(tile);
+            }
+        }
+
+        function createKeyboard() {
+            const keyboard = document.getElementById('keyboard');
+            keyboard.innerHTML = '';
+            const rows = [
+                'QWERTYUIOP',
+                'ASDFGHJKL',
+                'ZXCVBNM'
+            ];
+            rows.forEach((row, index) => {
+                const keyboardRow = document.createElement('div');
+                keyboardRow.classList.add('keyboard-row');
+                row.split('').forEach(letter => {
+                    const key = document.createElement('div');
+                    key.classList.add('key');
+                    key.textContent = letter;
+                    key.addEventListener('click', () => handleInput(letter));
+                    keyboardRow.appendChild(key);
+                });
+                keyboard.appendChild(keyboardRow);
+            });
+        }
+
+        function handleInput(letter) {
+            if (currentRow >= maxAttempts) return;
+            if (currentTile < 5) {
+                const tiles = document.querySelectorAll('.wordle-tile');
+                tiles[currentRow * 5 + currentTile].textContent = letter;
+                currentTile++;
+            }
+        }
+
+        function handleEnter() {
+            if (currentTile === 5) {
+                checkWord();
+                currentRow++;
+                currentTile = 0;
+            }
+        }
+
+        function handleBackspace() {
+            if (currentTile > 0) {
+                currentTile--;
+                const tiles = document.querySelectorAll('.wordle-tile');
+                tiles[currentRow * 5 + currentTile].textContent = '';
+            }
+        }
+
+        function checkWord() {
+            const tiles = document.querySelectorAll('.wordle-tile');
+            const guess = Array.from(tiles)
+                .slice(currentRow * 5, currentRow * 5 + 5)
+                .map(tile => tile.textContent)
+                .join('');
+
+            const checkedLetters = new Set();
+
+            for (let i = 0; i < 5; i++) {
+                const tile = tiles[currentRow * 5 + i];
+                const letter = guess[i];
+
+                if (letter === currentWord[i]) {
+                    tile.classList.add('correct');
+                    updateKeyboardColor(letter, 'correct');
+                    checkedLetters.add(letter);
+                }
+            }
+
+            for (let i = 0; i < 5; i++) {
+                const tile = tiles[currentRow * 5 + i];
+                const letter = guess[i];
+
+                if (!tile.classList.contains('correct')) {
+                    if (currentWord.includes(letter) && !checkedLetters.has(letter)) {
+                        tile.classList.add('present');
+                        updateKeyboardColor(letter, 'present');
+                        checkedLetters.add(letter);
+                    } else {
+                        tile.classList.add('absent');
+                        updateKeyboardColor(letter, 'absent');
+                    }
+                }
+            }
+
+            if (guess === currentWord) {
+                updateCrossword(guess);
+                completedWords++;
+                createMiniCelebration();
+                setTimeout(() => {
+                    hideWordleGame();
+                    checkGameCompletion();
+                }, 1500);
+            } else if (currentRow === maxAttempts - 1) {
+                updateCrossword(guess);
+                setTimeout(() => {
+                    hideWordleGame();
+                    checkGameCompletion();
+                }, 1500);
+            }
+        }
+
+        function updateKeyboardColor(letter, status) {
+            const key = Array.from(document.querySelectorAll('.key')).find(
+                key => key.textContent === letter &&
+                !key.classList.contains('correct') &&
+                !key.classList.contains('present')
+            );
+            if (key) {
+                key.classList.remove('correct', 'present', 'absent');
+                key.classList.add(status);
+            }
+        }
+
+        function updateCrossword(guess) {
+            const crosswordTiles = document.querySelectorAll('.crossword-tile');
+            const wordInfo = crosswordWords[currentWordIndex];
+
+            for (let i = 0; i < 5; i++) {
+                const row = wordInfo.direction === 'across' ? wordInfo.startRow : wordInfo.startRow + i;
+                const col = wordInfo.direction === 'across' ? wordInfo.startCol + i : wordInfo.startCol;
+                const tile = document.querySelector(`.crossword-tile[data-row="${row}"][data-col="${col}"]`);
+
+                if (guess[i] === currentWord[i]) {
+                    tile.textContent = guess[i];
+                    tile.classList.add('completed');
+                }
+            }
+        }
+
+        function hideWordleGame() {
+            document.getElementById('wordle-game').style.display = 'none';
+        }
+
+        function checkGameCompletion() {
+            const crosswordTiles = document.querySelectorAll('.crossword-tile:not(.empty)');
+            const isComplete = Array.from(crosswordTiles).every(tile => tile.textContent !== '');
+
+            if (isComplete) {
+                document.getElementById('message').textContent = 'Congratulations! You completed the Wordle Crossword!';
+                createBigCelebration();
+            }
+        }
+
+        function createMiniCelebration() {
+            const celebration = document.createElement('div');
+            celebration.classList.add('celebration');
+            for (let i = 0; i < 30; i++) {
+                const confetti = document.createElement('div');
+                confetti.classList.add('confetti');
+                confetti.style.left = `${Math.random() * 100}%`;
+                confetti.style.animationDuration = `${Math.random() * 3 + 2}s`;
+                confetti.style.backgroundColor = getRandomColor();
+                celebration.appendChild(confetti);
+            }
+            document.body.appendChild(celebration);
+            setTimeout(() => celebration.remove(), 3000);
+        }
+
+        function createBigCelebration() {
+            const celebration = document.createElement('div');
+            celebration.classList.add('celebration');
+            for (let i = 0; i < 100; i++) {
+                const confetti = document.createElement('div');
+                confetti.classList.add('confetti');
+                confetti.style.left = `${Math.random() * 100}%`;
+                confetti.style.animationDuration = `${Math.random() * 3 + 2}s`;
+                confetti.style.backgroundColor = getRandomColor();
+                celebration.appendChild(confetti);
+            }
+            document.body.appendChild(celebration);
+            setTimeout(() => celebration.remove(), 5000);
+        }
+
+        function getRandomColor() {
+            const letters = '0123456789ABCDEF';
+            let color = '#';
+            for (let i = 0; i < 6; i++) {
+                color += letters[Math.floor(Math.random() * 16)];
+            }
+            return color;
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                handleEnter();
+            } else if (e.key === 'Backspace') {
+                handleBackspace();
+            } else if (/^[A-Za-z]$/.test(e.key)) {
+                handleInput(e.key.toUpperCase());
+            }
+        });
+
+        createCrosswordGrid();
+    </script>
+</body>
+</html>
